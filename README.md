@@ -365,15 +365,17 @@ nist-trec-relevance (by 0.101), and above it on relevance-2 (by 0.021). GLAD was
 only and was 0.037 below majority vote there. The accuracy-weighted vote was never more than
 0.017 away from majority vote.
 
-The audit flagged 15.4 %, 3.0 % and 6.6 % of the annotators. Removing them left Dawid-Skene where
-it was (changes of 0.004 or less), since it already discounts them, and helped the methods that
-cannot, most of all on nist-trec-relevance, where the 23 flagged annotators had given 30.9 % of
-the labels: there majority vote, the weighted vote and the one-coin model came to within 0.025 of
-Dawid-Skene.
+The audit flagged 15.4 %, 3.0 % and 6.6 % of the annotators. Without them Dawid-Skene changed by
+0.004 or less on every data set. Majority vote changed by 0.000 on bluebirds, 0.049 on
+nist-trec-relevance and 0.007 on relevance-2, the weighted vote by 0.009, 0.057 and 0.013, and
+the one-coin model by 0.074, 0.175 and 0.006. The largest changes are on nist-trec-relevance,
+where the 23 flagged annotators (9 random, 14 constant) had given 30.9 % of the labels: without
+them the weighted vote and the one-coin model reach 0.615, above the 0.613 of Dawid-Skene, and
+majority vote reaches 0.590. These runs do not test why Dawid-Skene moved so little.
 
 Three data sets are too few to say when Dawid-Skene fails to beat majority vote. Here it never
-was below it; what did happen is that most of its lead on nist-trec-relevance went away once the
-flagged annotators were removed.
+was below it. On nist-trec-relevance its lead over majority vote shrank from 0.069 to 0.023 once
+the flagged annotators were removed, and two simpler methods then scored above it.
 
 ## Limitations
 
