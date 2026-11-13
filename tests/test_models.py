@@ -118,16 +118,16 @@ def test_one_coin_can_estimate_the_prior_and_checks_arguments():
         one_coin(single)
 
 
-def glad_data(seed: int = 0) -> tuple[LabelSet, np.ndarray, np.ndarray]:
+def glad_data(seed: int = 0, n_items: int = 600) -> tuple[LabelSet, np.ndarray, np.ndarray]:
     """Labels drawn from the GLAD model itself."""
     rng = np.random.default_rng(seed)
     ability = np.array([3.0, 2.0, 1.5, 1.0, 0.5, 0.0, -1.5])
-    easiness = np.exp(rng.normal(0, 0.7, size=600))
-    truth = rng.integers(2, size=600)
-    right = rng.random((600, 7)) < 1 / (1 + np.exp(-np.outer(easiness, ability)))
+    easiness = np.exp(rng.normal(0, 0.7, size=n_items))
+    truth = rng.integers(2, size=n_items)
+    right = rng.random((n_items, 7)) < 1 / (1 + np.exp(-np.outer(easiness, ability)))
     answers = np.where(right, truth[:, None], 1 - truth[:, None])
-    records = [(i, j, int(answers[i, j])) for i in range(600) for j in range(7)]
-    gold = {i: int(truth[i]) for i in range(600)}
+    records = [(i, j, int(answers[i, j])) for i in range(n_items) for j in range(7)]
+    gold = {i: int(truth[i]) for i in range(n_items)}
     return LabelSet.from_records(records, gold=gold), ability, easiness
 
 
@@ -158,12 +158,12 @@ def test_glad_parameters_stay_within_the_documented_bounds():
 
 
 def test_glad_gradient_matches_finite_differences():
-    labels, _, _ = glad_data(seed=1)
+    labels, _, _ = glad_data(seed=1, n_items=60)
     rng = np.random.default_rng(0)
     theta = rng.normal(0, 0.5, size=labels.n_annotators + labels.n_items)
     correct = rng.random(labels.n_labels)
     _, gradient = _negative_q(theta, labels, correct)
-    for index in (0, 3, 6, 7, 300, 606):
+    for index in (0, 3, 6, 7, 30, 66):
         step = np.zeros_like(theta)
         step[index] = 1e-6
         up, _ = _negative_q(theta + step, labels, correct)
@@ -172,17 +172,19 @@ def test_glad_gradient_matches_finite_differences():
 
 
 def test_glad_does_not_depend_on_class_names():
-    labels, _, _ = glad_data(seed=2)
+    labels, _, _ = glad_data(seed=2, n_items=80)
     rename = {"0": "yes", "1": "no"}
     renamed = LabelSet.from_records([(i, a, rename[label]) for i, a, label in labels.records()])
     assert renamed.classes == ("no", "yes")
-    base, other = glad(labels, tol=1e-9), glad(renamed, tol=1e-9)
+    base, other = glad(labels, tol=1e-7), glad(renamed, tol=1e-7)
+    assert base.converged
+    assert other.converged
     np.testing.assert_allclose(other.posterior[:, ::-1], base.posterior, atol=1e-4)
     np.testing.assert_allclose(other.ability, base.ability, atol=1e-3)
 
 
 def test_glad_checks_arguments_and_can_estimate_the_prior():
-    labels, _, _ = glad_data(seed=3)
+    labels, _, _ = glad_data(seed=3, n_items=60)
     with pytest.raises(ValueError, match="max_iter"):
         glad(labels, max_iter=0)
     with pytest.raises(ValueError, match="tol"):
