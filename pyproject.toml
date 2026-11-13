@@ -26,7 +26,7 @@ classifiers = [
 dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.5"]
+dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.5", "scipy>=1.10"]
 
 [project.scripts]
 labelfuse = "labelfuse.cli:main"
