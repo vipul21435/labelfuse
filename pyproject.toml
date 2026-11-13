@@ -27,6 +27,7 @@ dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "pytest-cov>=4.1", "ruff>=0.5"]
+compare = ["crowd-kit>=1.2", "pandas>=1.5"]
 
 [project.scripts]
 labelfuse = "labelfuse.cli:main"
