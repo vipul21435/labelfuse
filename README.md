@@ -252,10 +252,11 @@ closed-form maximum likelihood solution, where Dawid-Skene must equal majority v
 confusion matrices, accuracies and abilities are recovered from simulated labels. Renaming or
 reordering annotators and classes must not change a result. McNemar and the Wilson interval are
 compared with scipy, the bootstrap with the binomial distribution, the planner with the mutual
-information of a binary symmetric channel. With crowd-kit 1.4.2 installed
-(`pip install -e ".[dev,compare]"`), Dawid-Skene with `smoothing=0` matches crowd-kit's posterior,
-prior and confusion matrices to 1e-6 on a simulated set, and the vote shares match exactly;
-without crowd-kit those two tests are skipped, as they are in CI.
+information of a binary symmetric channel. The `compare` extra pins crowd-kit 1.4.2
+(`pip install -e ".[dev,compare]"`), the only version tried: with it, Dawid-Skene with
+`smoothing=0` matches crowd-kit's posterior, prior and confusion matrices to 1e-6 on a simulated
+set, and the vote shares match to 1e-12. Without crowd-kit those two tests are skipped, as they
+are in CI.
 
 ## Results on public data
 
