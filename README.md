@@ -263,12 +263,14 @@ and the numbers below.
 |---|---|---|---:|---:|---:|---:|
 | bluebirds | `demo/bluebirds` in [welinder/cubam](https://github.com/welinder/cubam), the code for Welinder, Branson, Belongie and Perona, "The Multidimensional Wisdom of Crowds", NIPS 2010 | the repository is under the Clear BSD licence (`LICENSE.TXT`); its README says nothing separate about the data | 108 (108) | 39 | 4212 | 2 |
 | nist-trec-relevance | archive that [crowd-kit](https://github.com/Toloka/crowd-kit) downloads (`crowdkit/datasets/_loaders.py`): crowd judgements of web pages from the NIST TREC 2010 Relevance Feedback Track | none stated for the data; the crowd-kit code is Apache-2.0 | 20232 (4460) | 766 | 98453 | 4 |
+| relevance-2 | same loader: binary relevance labels for query-document pairs from Yandex's 2016 "Relevance 2 Gradations" project | none stated for the data | 99319 (10079) | 7138 | 475536 | 2 |
 
 
 ```
 python scripts/fetch_data.py --out data
 labelfuse evaluate data/bluebirds.jsonl --drop-flagged
 labelfuse evaluate data/nist-trec-relevance.jsonl --duplicates keep --drop-flagged
+labelfuse evaluate data/relevance-2.jsonl --methods majority,weighted,one-coin,dawid-skene --tol 1e-6 --drop-flagged
 ```
 
 The script checks the two crowd-kit archives against the md5 files published next to them. The
@@ -329,21 +331,48 @@ posteriors are overconfident on this data: its expected calibration error is 0.2
 0.062 for the plain vote shares. The file has 1570 repeated (item, annotator) pairs, which
 `--duplicates keep` counts as separate judgements. GLAD does not apply to four classes.
 
+### relevance-2
+
+| method | accuracy | 95 % interval | ties | vs majority | 95 % interval | only method / only baseline right | McNemar p | ECE | Brier |
+|---|---:|---|---:|---:|---|---|---:|---:|---:|
+| majority | 0.772 | 0.764 to 0.780 | 214 | - | - | - | - | 0.042 | 0.330 |
+| weighted | 0.774 | 0.766 to 0.782 | 5 | +0.002 | +0.000 to +0.003 | 60 / 46 | 0.206 | 0.077 | 0.322 |
+| one-coin | 0.793 | 0.785 to 0.800 | 5 | +0.021 | +0.015 to +0.026 | 514 / 311 | 1.6e-12 | 0.134 | 0.343 |
+| dawid-skene | 0.812 | 0.804 to 0.819 | 0 | +0.040 | +0.034 to +0.046 | 705 / 308 | 1.9e-36 | 0.118 | 0.310 |
+
+Flagged by the dawid-skene audit: 471 of 7138 annotators (6.6%; random 207, constant 264), who gave 25446 of 475536 labels (5.4%). Accuracy with and without them:
+
+| method | all annotators | without flagged | change |
+|---|---:|---:|---:|
+| majority | 0.772 | 0.779 | +0.007 |
+| weighted | 0.774 | 0.787 | +0.013 |
+| one-coin | 0.793 | 0.799 | +0.006 |
+| dawid-skene | 0.812 | 0.811 | -0.000 |
+
+Dawid-Skene is 0.040 above majority vote and the one-coin model 0.021: here the one-coin model
+helps instead of hurting. The weighted vote is within 0.002 of majority vote. The audit flags
+6.6 % of the annotators, who gave 5.4 % of the labels, and removing them moves every method by
+0.013 or less. EM ran with `--tol 1e-6` instead of the default 1e-8 to shorten the run, and GLAD
+is left out (see [Limitations](#limitations)).
+
 ### What this shows
 
-Dawid-Skene was above majority vote on both data sets, by 0.139 and 0.069, and both intervals
-are clear of zero. Its posteriors were not as good as its labels: on nist-trec-relevance they
-are overconfident. The one-coin model, which gives each annotator a single accuracy, was below
-majority vote on both, by 0.037 (interval includes zero) and 0.101. GLAD applies to bluebirds
-only and was 0.037 below majority vote there.
+Dawid-Skene was above majority vote on all three data sets, by 0.139, 0.069 and 0.040, and all
+three intervals are clear of zero. Its posteriors were not as good as its labels: on
+nist-trec-relevance they are overconfident. The one-coin model, which gives each annotator a
+single accuracy, was below majority vote on bluebirds (by 0.037, interval includes zero) and on
+nist-trec-relevance (by 0.101), and above it on relevance-2 (by 0.021). GLAD was run on bluebirds
+only and was 0.037 below majority vote there. The accuracy-weighted vote was never more than
+0.017 away from majority vote.
 
-The audit flagged 15.4 % and 3.0 % of the annotators. Removing them left Dawid-Skene where it was
-(0.000 and +0.004), since it already discounts them, and helped the methods that cannot: on
-nist-trec-relevance it brought majority vote, the weighted vote and the one-coin model to within
-0.025 of Dawid-Skene.
+The audit flagged 15.4 %, 3.0 % and 6.6 % of the annotators. Removing them left Dawid-Skene where
+it was (changes of 0.004 or less), since it already discounts them, and helped the methods that
+cannot, most of all on nist-trec-relevance, where the 23 flagged annotators had given 30.9 % of
+the labels: there majority vote, the weighted vote and the one-coin model came to within 0.025 of
+Dawid-Skene.
 
-Two data sets are too few to say when Dawid-Skene fails to beat majority vote. Here it never was
-below it; what did happen is that most of its lead on nist-trec-relevance went away once the
+Three data sets are too few to say when Dawid-Skene fails to beat majority vote. Here it never
+was below it; what did happen is that most of its lead on nist-trec-relevance went away once the
 flagged annotators were removed.
 
 ## Limitations
@@ -354,10 +383,6 @@ flagged annotators were removed.
   that `scripts/fetch_data.py` fetches: 99319 items, 7138 annotators, 475536 labels) an
   evaluation that included GLAD was stopped unfinished after about eight minutes. Its time was
   not measured separately.
-- relevance-2 has no table here. Its evaluation without GLAD
-  (`labelfuse evaluate data/relevance-2.jsonl --methods majority,weighted,one-coin,dawid-skene
-  --tol 1e-6 --drop-flagged`) had not finished on a heavily loaded machine when this was
-  written.
 - The one-coin model and GLAD fix the class prior to uniform. With the prior estimated
   (`estimate_prior=True`) both drifted to "nearly every image is `false`" on bluebirds and
   scored 0.583 and 0.593 instead of 0.722:
