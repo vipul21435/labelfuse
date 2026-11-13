@@ -197,3 +197,14 @@ def test_item_without_labels_falls_back_to_the_prior():
     assert votes.labels[2] is None
     model = dawid_skene(smaller)
     np.testing.assert_allclose(model.posterior[2], model.class_prior)
+
+
+def test_audits_reject_results_from_another_label_set(crowd):
+    other = majority_vote(simulate(5, np.stack([np.eye(2)] * 2)))
+    with pytest.raises(ValueError, match="another label set"):
+        audit_items(crowd, other)
+    with pytest.raises(ValueError, match="another label set"):
+        plan_relabelling(crowd, other, 3)
+    single = LabelSet.from_records([("i", "a", "x"), ("i", "b", "x")])
+    with pytest.raises(ValueError, match="at least two classes"):
+        audit_annotators(single, majority_vote(single))

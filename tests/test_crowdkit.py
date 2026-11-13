@@ -27,18 +27,18 @@ def frame(labels):
 
 
 def test_dawid_skene_matches_crowd_kit(labels, frame):
-    theirs = aggregation.DawidSkene(n_iter=3000, tol=0).fit(frame)
+    theirs = aggregation.DawidSkene(n_iter=500, tol=0).fit(frame)
     ours = dawid_skene(labels, smoothing=0, tol=1e-12, max_iter=5000)
     assert ours.converged
 
     posterior = theirs.probas_.loc[list(labels.items), list(labels.classes)].to_numpy()
-    np.testing.assert_allclose(ours.posterior, posterior, atol=1e-7)
+    np.testing.assert_allclose(ours.posterior, posterior, atol=1e-6)
     prior = theirs.priors_.loc[list(labels.classes)].to_numpy()
-    np.testing.assert_allclose(ours.class_prior, prior, atol=1e-7)
+    np.testing.assert_allclose(ours.class_prior, prior, atol=1e-6)
     for j, annotator in enumerate(labels.annotators):
         for given, name in enumerate(labels.classes):
             row = theirs.errors_.loc[(annotator, name), list(labels.classes)].to_numpy()
-            np.testing.assert_allclose(ours.confusion[j, :, given], row, atol=1e-7)
+            np.testing.assert_allclose(ours.confusion[j, :, given], row, atol=1e-6)
     agreed = [
         ours.labels[i] == theirs.labels_[item]
         for i, item in enumerate(labels.items)

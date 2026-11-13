@@ -8,7 +8,7 @@ columns item, annotator, label and, where the source has one, gold.
 
 Sources
 - bluebirds: demo/bluebirds/labels.yaml and gt.yaml in https://github.com/welinder/cubam
-  (39 annotators say for each of 108 images whether it shows an indigo bunting).
+  (39 annotators give a true/false label to each of 108 images).
 - relevance-2 and nist-trec-relevance: the archives that the crowd-kit library downloads,
   https://github.com/Toloka/crowd-kit (crowdkit/datasets/_loaders.py), checked against the md5
   files published next to them.
