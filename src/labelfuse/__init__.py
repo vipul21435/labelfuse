@@ -1,5 +1,6 @@
 """labelfuse: aggregate noisy labels from several annotators and audit the annotators."""
 
+from labelfuse.aggregators import METHODS, aggregate, applicable_methods
 from labelfuse.data import LabelSet, dump_labels, read_labels, write_labels
 from labelfuse.dawid_skene import DawidSkeneResult, dawid_skene, dawid_skene_posterior
 from labelfuse.evaluate import (
@@ -13,19 +14,28 @@ from labelfuse.evaluate import (
     reliability_table,
     tie_credit,
 )
+from labelfuse.glad import GladResult, glad
 from labelfuse.majority import majority_vote, vote_shares
+from labelfuse.one_coin import OneCoinResult, one_coin
 from labelfuse.result import AggregationResult, resolve_labels
 from labelfuse.simulate import simulate, symmetric_confusion
+from labelfuse.weighted import WeightedVoteResult, leave_one_out_agreement, weighted_vote
 
 __version__ = "0.1.0"
 
 __all__ = [
+    "METHODS",
     "AggregationResult",
     "DawidSkeneResult",
+    "GladResult",
     "LabelSet",
     "MethodEvaluation",
+    "OneCoinResult",
     "ReliabilityBin",
+    "WeightedVoteResult",
     "__version__",
+    "aggregate",
+    "applicable_methods",
     "bootstrap_mean_interval",
     "brier_score",
     "dawid_skene",
@@ -33,8 +43,11 @@ __all__ = [
     "dump_labels",
     "evaluate",
     "expected_calibration_error",
+    "glad",
+    "leave_one_out_agreement",
     "majority_vote",
     "mcnemar_exact",
+    "one_coin",
     "read_labels",
     "reliability_table",
     "resolve_labels",
@@ -42,5 +55,6 @@ __all__ = [
     "symmetric_confusion",
     "tie_credit",
     "vote_shares",
+    "weighted_vote",
     "write_labels",
 ]

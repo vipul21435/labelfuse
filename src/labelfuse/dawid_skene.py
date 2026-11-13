@@ -24,7 +24,9 @@ Error-Rates Using the EM Algorithm", Applied Statistics 28(1), doi:10.2307/23468
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -35,6 +37,9 @@ from labelfuse.result import AggregationResult, TiePolicy, resolve_labels
 DEFAULT_SMOOTHING = 0.01
 DEFAULT_MAX_ITER = 1000
 DEFAULT_TOL = 1e-8
+
+MStep = Callable[[np.ndarray, LabelSet, float], tuple[np.ndarray, np.ndarray]]
+Penalty = Callable[[np.ndarray, np.ndarray, float], float]
 
 
 @dataclass(frozen=True, eq=False)
@@ -126,16 +131,24 @@ def _penalty(confusion: np.ndarray, class_prior: np.ndarray, smoothing: float) -
     return float(smoothing * (np.log(confusion).sum() + np.log(class_prior).sum()))
 
 
-def _fit(start: np.ndarray, labels: LabelSet, smoothing: float, max_iter: int, tol: float) -> _Fit:
+def _fit(
+    start: np.ndarray,
+    labels: LabelSet,
+    smoothing: float,
+    max_iter: int,
+    tol: float,
+    m_step: MStep = _m_step,
+    penalty: Penalty = _penalty,
+) -> _Fit:
     posterior = start
     log_likelihoods: list[float] = []
     objectives: list[float] = []
     converged = False
     for _ in range(max_iter):
-        confusion, class_prior = _m_step(posterior, labels, smoothing)
+        confusion, class_prior = m_step(posterior, labels, smoothing)
         updated, log_likelihood = _e_step(confusion, class_prior, labels)
         log_likelihoods.append(log_likelihood)
-        objectives.append(log_likelihood + _penalty(confusion, class_prior, smoothing))
+        objectives.append(log_likelihood + penalty(confusion, class_prior, smoothing))
         change = float(np.abs(updated - posterior).max())
         posterior = updated
         if change < tol:
@@ -199,6 +212,36 @@ def dawid_skene(
     weight ``restart_noise`` (drawn with ``seed``); the start with the highest objective is
     returned, the first one on ties.
     """
+    return DawidSkeneResult(
+        **_em_fields(
+            labels,
+            method="dawid-skene",
+            smoothing=smoothing,
+            max_iter=max_iter,
+            tol=tol,
+            n_restarts=n_restarts,
+            restart_noise=restart_noise,
+            seed=seed,
+            tie=tie,
+        )
+    )
+
+
+def _em_fields(
+    labels: LabelSet,
+    *,
+    method: str,
+    smoothing: float,
+    max_iter: int,
+    tol: float,
+    n_restarts: int,
+    restart_noise: float,
+    seed: int,
+    tie: TiePolicy,
+    m_step: MStep = _m_step,
+    penalty: Penalty = _penalty,
+) -> dict[str, Any]:
+    """Run EM from one or more starts and return the fields of a :class:`DawidSkeneResult`."""
     if smoothing < 0:
         raise ValueError("smoothing must not be negative")
     if max_iter < 1:
@@ -221,7 +264,7 @@ def dawid_skene(
         else:
             noise = rng.dirichlet(np.ones(labels.n_classes), size=labels.n_items)
             start = (1 - restart_noise) * votes + restart_noise * noise
-        fit = _fit(start, labels, smoothing, max_iter, tol)
+        fit = _fit(start, labels, smoothing, max_iter, tol, m_step, penalty)
         final = fit.objectives[-1]
         finals.append(final)
         if best is None or final > best.objectives[-1] + 1e-9 * max(1.0, abs(final)):
@@ -229,22 +272,22 @@ def dawid_skene(
     assert best is not None
 
     names, tied = resolve_labels(best.posterior, labels.classes, tie=tie, seed=seed)
-    return DawidSkeneResult(
-        method="dawid-skene",
-        items=labels.items,
-        classes=labels.classes,
-        posterior=best.posterior,
-        labels=names,
-        tied=tied,
-        annotators=labels.annotators,
-        confusion=best.confusion,
-        class_prior=best.class_prior,
-        log_likelihood=best.log_likelihoods[-1],
-        log_likelihood_trace=tuple(best.log_likelihoods),
-        objective_trace=tuple(best.objectives),
-        n_iter=len(best.objectives),
-        converged=best.converged,
-        smoothing=float(smoothing),
-        restart_objectives=tuple(finals),
-        best_restart=best_index,
-    )
+    return {
+        "method": method,
+        "items": labels.items,
+        "classes": labels.classes,
+        "posterior": best.posterior,
+        "labels": names,
+        "tied": tied,
+        "annotators": labels.annotators,
+        "confusion": best.confusion,
+        "class_prior": best.class_prior,
+        "log_likelihood": best.log_likelihoods[-1],
+        "log_likelihood_trace": tuple(best.log_likelihoods),
+        "objective_trace": tuple(best.objectives),
+        "n_iter": len(best.objectives),
+        "converged": best.converged,
+        "smoothing": float(smoothing),
+        "restart_objectives": tuple(finals),
+        "best_restart": best_index,
+    }
