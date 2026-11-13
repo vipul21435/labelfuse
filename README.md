@@ -123,9 +123,9 @@ E-step   T[i, k]  proportional to  p[k] * product over the labels (j, l) of item
 classes, `I` the number of items and `s` the smoothing pseudo-count (`--smoothing`, default 0.01).
 With `s = 0` this is maximum likelihood. With `s > 0` it is the posterior mode under a
 Dirichlet(1 + s) prior on every row of every confusion matrix and on the class prior. Iteration
-stops when no posterior entry moves by more than `--tol` (default 1e-8). `--restarts N` adds
-`N - 1` starts whose first posterior mixes the vote shares with random noise, and returns the
-start with the highest objective.
+stops once every posterior entry moves by less than `--tol` (default 1e-8) in one iteration.
+`--restarts N` adds `N - 1` starts whose first posterior mixes the vote shares with random noise,
+and returns the start with the highest objective.
 
 The model and its EM fit are from A. P. Dawid and A. M. Skene, "Maximum Likelihood Estimation of
 Observer Error-Rates Using the EM Algorithm", Applied Statistics 28(1), 1979,

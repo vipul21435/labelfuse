@@ -155,7 +155,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--tol",
         type=float,
         default=DEFAULT_TOL,
-        help=f"stop when no posterior entry moves by more than this (default: {DEFAULT_TOL:g})",
+        help=f"stop once every posterior entry moves by less than this (default: {DEFAULT_TOL:g})",
     )
     model.add_argument(
         "--restarts",

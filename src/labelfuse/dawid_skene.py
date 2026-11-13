@@ -44,8 +44,9 @@ class DawidSkeneResult(AggregationResult):
     ``confusion[j, k, l]`` is the estimated probability that annotator ``annotators[j]`` answers
     ``classes[l]`` when the true class is ``classes[k]``. ``log_likelihood_trace`` and
     ``objective_trace`` have one entry per EM iteration of the selected start; the objective is
-    the log-likelihood plus the smoothing term and never decreases. ``restart_objectives`` holds
-    the final objective of every start and ``best_restart`` the index of the one returned.
+    the log-likelihood plus the smoothing term and does not decrease, up to rounding.
+    ``restart_objectives`` holds the final objective of every start and ``best_restart`` the
+    index of the one returned.
     """
 
     annotators: tuple[str, ...]
@@ -188,8 +189,10 @@ def dawid_skene(
 
     ``smoothing`` is a pseudo-count added to every cell of every confusion matrix and to every
     class of the prior (0 gives plain maximum likelihood). One iteration is an M-step followed by
-    an E-step; iteration stops when no posterior entry moved by more than ``tol`` or after
-    ``max_iter`` iterations.
+    an E-step. Iteration stops once every posterior entry moves by less than ``tol`` in one
+    iteration, or after ``max_iter`` iterations; ``tol=0`` always runs all of them. The stopping
+    rule bounds the last move, not the distance to the fixed point, which can be larger when EM
+    converges slowly.
 
     The first start uses the vote shares as the initial posterior and is deterministic. With
     ``n_restarts > 1`` the further starts mix the vote shares with Dirichlet(1, ..., 1) noise of
