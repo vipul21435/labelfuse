@@ -450,6 +450,9 @@ the flagged annotators were removed, and two simpler methods then scored above i
 - [judgebias](https://github.com/vipul21435/judgebias): audit of LLM judges.
 - [prefpairs](https://github.com/vipul21435/prefpairs): pairwise preference data and
   Bradley-Terry, for judgements that compare two items instead of labelling one.
+- [ppieval](https://github.com/vipul21435/ppieval): combines a few human labels with many automatic judgments and keeps the interval valid.
+- [metaeval](https://github.com/vipul21435/metaeval): correlates automatic metrics or graders with human ratings, with the grouping stated and an interval on every number.
+- [calibcheck](https://github.com/vipul21435/calibcheck): measures how well a model's confidence matches how often it is right, with held-out recalibration checks.
 
 ## Licence
 
