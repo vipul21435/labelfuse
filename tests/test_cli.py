@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 
+import numpy as np
 import pytest
 
 from labelfuse import __version__, read_labels
@@ -192,3 +193,169 @@ def test_module_entry_point(toy):
     )
     assert done.returncode == 0
     assert done.stdout.startswith("# Aggregated labels")
+
+
+@pytest.fixture
+def binary(tmp_path):
+    path = tmp_path / "binary.jsonl"
+    arguments = ["simulate", "--items", "150", "--accuracy", "0.9,0.85,0.8,0.5,0.5", "--seed", "2"]
+    assert main([*arguments, "-o", str(path)]) == 0
+    return path
+
+
+def test_aggregate_runs_every_method(binary, capsys):
+    for method in ("majority", "weighted", "one-coin", "dawid-skene", "glad"):
+        assert main(["aggregate", str(binary), "--method", method, "--format", "json"]) == 0
+        document = json.loads(capsys.readouterr().out)
+        assert document["method"] == method
+        assert len(document["items"]) == 150
+        if method in ("weighted", "glad", "one-coin", "dawid-skene"):
+            assert len(document["annotators"]) == 5
+    assert main(["aggregate", str(binary), "--method", "glad", "--top", "2"]) == 0
+    assert "- method: glad\n- EM: " in capsys.readouterr().out
+
+
+def test_evaluate_markdown(binary, capsys):
+    assert main(["evaluate", str(binary), "--bootstrap", "200", "--reliability"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# Evaluation against gold\n")
+    assert "- items with gold: 150 of 150" in out
+    assert "200 resamples, seed 0" in out
+    header = "| method | accuracy | 95 % interval | ties | vs majority |"
+    assert header in out
+    rows = [line for line in out.splitlines() if re.match(r"\| [a-z-]+ \| 0\.\d{3} \| ", line)]
+    assert [row.split(" | ")[0].strip("| ") for row in rows] == [
+        "majority",
+        "weighted",
+        "one-coin",
+        "dawid-skene",
+        "glad",
+    ]
+    assert "| majority | 0." in out
+    assert " | - | - | - | - | " in out
+    assert "## Reliability of dawid-skene" in out
+    assert "| top probability | items | mean probability | accuracy | gap |" in out
+
+
+def test_evaluate_json_methods_baseline_and_dropping_flagged(binary, capsys):
+    arguments = ["evaluate", str(binary), "--bootstrap", "100", "--format", "json"]
+    assert main([*arguments, "--methods", "dawid-skene", "--drop-flagged"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert [row["method"] for row in document["methods"]] == ["majority", "dawid-skene"]
+    assert document["n_gold"] == 150
+    model = document["methods"][1]
+    assert 0.8 < model["accuracy"] <= 1.0
+    assert model["interval"][0] <= model["accuracy"] <= model["interval"][1]
+    assert sum(row["count"] for row in model["reliability"]) == 150
+    without = document["without_flagged"]
+    assert without["audit_method"] == "dawid-skene"
+    assert set(without["flagged"]) <= {"a4", "a5"}
+    assert without["n_random"] + without["n_constant"] == len(without["flagged"])
+    assert without["n_labels_dropped"] == 150 * len(without["flagged"])
+    assert [row["method"] for row in without["methods"]] == ["majority", "dawid-skene"]
+
+
+def test_evaluate_drop_flagged_markdown(binary, capsys):
+    arguments = ["evaluate", str(binary), "--bootstrap", "100", "--drop-flagged"]
+    assert main([*arguments, "--spam-threshold", "0.2"]) == 0
+    out = capsys.readouterr().out
+    assert "## Without flagged annotators" in out
+    assert (
+        "- flagged by the dawid-skene audit: 2 of 5 annotators (40.0%; random 2, constant 0)" in out
+    )
+    assert "who gave 300 of 750 labels (40.0%)" in out
+    assert "| method | all annotators | without flagged | change |" in out
+    assert main([*arguments, "--spam-threshold", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "0 of 5 annotators" in out
+    assert "all annotators | without flagged" not in out
+
+
+def test_evaluate_errors(binary, tmp_path, capsys):
+    assert main(["evaluate", str(binary), "--methods", "median"]) == 2
+    assert "unknown methods" in capsys.readouterr().err
+    assert main(["evaluate", str(binary), "--gold-col", "truth"]) == 2
+    assert "no gold labels found in column 'truth'" in capsys.readouterr().err
+    path = tmp_path / "nogold.csv"
+    path.write_text("item,annotator,label,gold\ni1,a,x,\ni1,b,y,\n", encoding="utf-8")
+    assert main(["evaluate", str(path)]) == 2
+    assert "no gold labels found in column 'gold'" in capsys.readouterr().err
+
+
+def test_annotators_report(binary, capsys):
+    arguments = ["annotators", str(binary), "--spam-threshold", "0.2", "--audit-bootstrap", "100"]
+    assert main([*arguments, "--gold-col", "gold", "--top", "2"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# Annotator audit\n")
+    assert "- flagged: 2 of 5 annotators (40.0%; random 2, constant 0), who gave 300 of 750" in out
+    assert "## Least informative annotators (2 of 5)" in out
+    assert "| gold accuracy (items) |" in out
+    assert len(re.findall(r"^\| a[45] \| 150 \| .* \| random \|$", out, flags=re.MULTILINE)) == 2
+
+    assert main([*arguments, "--format", "json", "--method", "majority"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["method"] == "majority"
+    assert len(document["annotators"]) == 5
+    first = document["annotators"][0]
+    assert first["annotator"] == "a1"
+    assert first["gold_accuracy"] is None
+    assert np.array(first["confusion"]).shape == (2, 2)
+    assert main([*arguments, "--top", "0"]) == 0
+    out = capsys.readouterr().out
+    assert "(5 of 5)" in out
+    assert "gold accuracy" not in out
+
+
+def test_items_report(binary, capsys):
+    assert main(["items", str(binary), "--top", "3", "--certain-at", "0.99"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# Item audit\n")
+    assert "- uncertain items (top probability below 0.99): " in out
+    assert "## Most uncertain items (3 of 150)" in out
+    assert "| item | label | probability | entropy (bits) | margin | labels | votes |" in out
+    assert main(["items", str(binary), "--format", "json", "--method", "majority"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert len(document["items"]) == 150
+    assert document["n_uncertain"] == sum(item["uncertain"] for item in document["items"])
+
+
+def test_items_and_plan_show_ties(tmp_path, capsys):
+    path = tmp_path / "tie.csv"
+    path.write_text("item,annotator,label\ni1,a,x\ni1,b,y\ni2,a,x\ni2,b,x\n", encoding="utf-8")
+    assert main(["items", str(path), "--method", "majority", "--top", "0"]) == 0
+    assert "| i1 | (tie) | 0.500 | 1.000 | 0.000 | 2 | x 1, y 1 |" in capsys.readouterr().out
+    assert main(["plan", str(path), "--method", "majority", "--budget", "1"]) == 0
+    assert "| i1 | (tie) | 0.500 | 1.000 | " in capsys.readouterr().out
+
+
+def test_plan_report(binary, capsys):
+    assert main(["plan", str(binary), "--budget", "12", "--top", "5"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("# Relabelling plan\n")
+    assert "- budget: 12 labels, planned: 12 " in out
+    assert "## Items to relabel (5 of 12)" in out
+    assert main(["plan", str(binary), "--budget", "12", "--format", "json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert document["n_planned"] == 12
+    drops = [item["expected_reduction"] for item in document["items"]]
+    assert drops == sorted(drops, reverse=True)
+    assert document["expected_reduction"] == pytest.approx(sum(drops))
+    assert main(["plan", str(binary), "--budget", "3", "--method", "majority", "--top", "0"]) == 0
+    assert "## Items to relabel (3 of 3)" in capsys.readouterr().out
+    assert main(["plan", str(binary), "--budget", "-1"]) == 2
+    assert "budget must not be negative" in capsys.readouterr().err
+
+
+def test_simulate_from_confusion_matrices(tmp_path):
+    spec = tmp_path / "annotators.json"
+    spec.write_text(json.dumps([[[1, 0], [0, 1]], [[1, 0], [1, 0]]]), encoding="utf-8")
+    out = tmp_path / "sim.jsonl"
+    assert main(["simulate", "--items", "50", "--confusion", str(spec), "-o", str(out)]) == 0
+    labels = read_labels(out, gold_col="gold")
+    by_annotator = {}
+    for item, annotator, label in labels.records():
+        by_annotator.setdefault(annotator, []).append(
+            (label, labels.gold[labels.items.index(item)])
+        )
+    assert all(label == gold for label, gold in by_annotator["a1"])
+    assert {label for label, _ in by_annotator["a2"]} == {"c0"}
