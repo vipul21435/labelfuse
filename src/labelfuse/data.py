@@ -141,6 +141,32 @@ class LabelSet:
         for i, j, k in zip(self.item_index, self.annotator_index, self.label_index, strict=True):
             yield self.items[i], self.annotators[j], self.classes[k]
 
+    def drop_annotators(self, names: Iterable[str]) -> LabelSet:
+        """A copy without the labels of the named annotators.
+
+        Items, classes and gold stay the same, so an item may be left without any label.
+        """
+        dropped = set(names)
+        unknown = sorted(dropped - set(self.annotators))
+        if unknown:
+            raise ValueError(f"unknown annotators: {unknown[:5]}")
+        kept = [index for index, name in enumerate(self.annotators) if name not in dropped]
+        if not kept:
+            raise ValueError("no annotator would be left")
+        position = np.full(self.n_annotators, -1, dtype=np.int64)
+        position[kept] = np.arange(len(kept))
+        mask = position[self.annotator_index] >= 0
+        return LabelSet(
+            items=self.items,
+            annotators=tuple(self.annotators[index] for index in kept),
+            classes=self.classes,
+            item_index=self.item_index[mask],
+            annotator_index=position[self.annotator_index[mask]],
+            label_index=self.label_index[mask],
+            gold=self.gold,
+            n_duplicates=self.n_duplicates,
+        )
+
     @classmethod
     def from_records(
         cls,
