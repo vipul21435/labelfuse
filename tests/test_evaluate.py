@@ -1,14 +1,18 @@
+import warnings
+
 import numpy as np
 import pytest
 from scipy import stats
 
 from labelfuse import (
+    GoldOutsideClassesWarning,
     LabelSet,
     bootstrap_mean_interval,
     brier_score,
     dawid_skene,
     evaluate,
     expected_calibration_error,
+    gold_outside_classes,
     majority_vote,
     mcnemar_exact,
     reliability_table,
@@ -167,3 +171,22 @@ def test_evaluate_rejects_missing_gold_baseline_and_foreign_results(noisy):
     other = simulate(30, np.stack([symmetric_confusion(0.8, 2)] * 3), seed=1)
     with pytest.raises(ValueError, match="other items"):
         evaluate(noisy, {"majority": majority_vote(other)})
+
+
+def test_gold_outside_the_classes_is_scored_wrong_with_a_warning():
+    records = [(i, a, "x") for i in range(4) for a in "ab"] + [(4, "a", "y"), (4, "b", "y")]
+    gold = {0: "x", 1: "x", 2: "z", 3: "other", 4: "y"}
+    labels = LabelSet.from_records(records, gold=gold)
+    assert gold_outside_classes(labels) == (2, ("other", "z"))
+    message = r"not among the classes \('x', 'y'\): 'other', 'z' on 2 of 5 items with gold"
+    with pytest.warns(GoldOutsideClassesWarning, match=message):
+        (row,) = evaluate(labels, {"majority": majority_vote(labels)}, n_boot=50)
+    assert row.n_items == 5
+    assert row.accuracy == pytest.approx(3 / 5)
+
+
+def test_no_warning_when_every_gold_label_is_a_class(noisy):
+    assert gold_outside_classes(noisy) == (0, ())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        evaluate(noisy, {"majority": majority_vote(noisy)}, n_boot=50)

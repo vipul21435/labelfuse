@@ -153,8 +153,9 @@ recovers what was planted and nothing more. Real data is under
 
 Every aggregator returns a posterior over the classes for each item. Ids and labels are compared
 as text, items, annotators and classes are put in a canonical order, and the rows are sorted, so
-row order does not change a result. An annotator labelling the same item twice is an error unless
-`--duplicates keep|first|last` says what to do.
+row order does not change a result. A whole number is written like an integer, so the JSON values
+1 and 1.0 are the same label; NaN and infinities count as missing. An annotator labelling the
+same item twice is an error unless `--duplicates keep|first|last` says what to do.
 
 **Majority vote** (`majority`). The posterior is the share of votes per class: a description of
 the votes, not a calibrated probability. A tie has an explicit policy, `--tie abstain` (default,
@@ -242,7 +243,8 @@ with a paired bootstrap interval; an exact McNemar test on the items only one of
 right (ties broken at random with `--seed` for these counts); and for the posteriors a
 reliability table (`--reliability`), the expected calibration error over ten bins of the top
 probability, and the Brier score. `--drop-flagged` repeats the evaluation without the annotators
-that the audit flags.
+that the audit flags. A gold label that no annotator used can never be predicted: such items are
+scored as wrong, and the report and a warning say how many there are.
 
 **Tests.** One EM step is checked against a calculation by hand in exact fractions, three steps
 against a plain-loop implementation in rational arithmetic, and a symmetric data set against its

@@ -359,3 +359,28 @@ def test_simulate_from_confusion_matrices(tmp_path):
         )
     assert all(label == gold for label, gold in by_annotator["a1"])
     assert {label for label, _ in by_annotator["a2"]} == {"c0"}
+
+
+def test_evaluate_warns_about_gold_labels_nobody_used(tmp_path, capsys):
+    path = tmp_path / "stray.csv"
+    rows = "i1,a,x,x\ni1,b,x,\ni2,a,y,maybe\ni2,b,y,\ni3,a,y,y\ni3,b,y,\n"
+    path.write_text("item,annotator,label,gold\n" + rows, encoding="utf-8")
+    assert main(["evaluate", str(path), "--bootstrap", "50", "--drop-flagged"]) == 0
+    captured = capsys.readouterr()
+    warning = "labelfuse: warning: gold labels that are not among the classes ('x', 'y'): 'maybe'"
+    assert captured.err.count(warning) == 1
+    assert "on 1 of 3 items with gold; those items are scored as wrong" in captured.err
+    line = "- gold labels that no annotator used: maybe on 1 of 3 items with gold, scored as wrong"
+    assert line in captured.out
+    assert "| majority | 0.667 |" in captured.out
+    assert main(["evaluate", str(path), "--bootstrap", "50", "--format", "json"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["n_gold_outside_classes"] == 1
+    assert captured.err.count("labelfuse: warning:") == 1
+
+
+def test_evaluate_is_silent_when_every_gold_label_is_a_class(binary, capsys):
+    assert main(["evaluate", str(binary), "--bootstrap", "50", "--format", "json"]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out)["n_gold_outside_classes"] == 0

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from labelfuse.aggregators import METHODS, aggregate, applicable_methods
 from labelfuse.audit import audit_annotators, audit_items, plan_relabelling
 from labelfuse.data import LabelSet, dump_labels, read_labels, write_labels
 from labelfuse.dawid_skene import DEFAULT_MAX_ITER, DEFAULT_SMOOTHING, DEFAULT_TOL
-from labelfuse.evaluate import evaluate
+from labelfuse.evaluate import GoldOutsideClassesWarning, evaluate
 from labelfuse.report import (
     aggregate_document,
     aggregate_markdown,
@@ -222,7 +223,26 @@ def _run_evaluate(args: argparse.Namespace) -> int:
             n_bins=args.bins,
         )
 
-    rows = score(labels)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", GoldOutsideClassesWarning)
+        rows = score(labels)
+        without = _without_flagged(labels, args, score, rows)
+    for message in dict.fromkeys(str(entry.message) for entry in caught):
+        print(f"labelfuse: warning: {message}", file=sys.stderr)
+    options = {"baseline": args.baseline, "n_boot": args.bootstrap, "seed": args.seed}
+    return _emit(
+        args,
+        evaluation_markdown(
+            labels, rows, reliability=args.reliability, without_flagged=without, **options
+        ),
+        evaluation_document(labels, rows, without_flagged=without, **options),
+    )
+
+
+def _without_flagged(
+    labels: LabelSet, args: argparse.Namespace, score: Any, rows: list[Any]
+) -> dict[str, Any] | None:
+    """The evaluation repeated without the annotators that the audit flags."""
     without = None
     if args.drop_flagged:
         reports = _audit(labels, _aggregate(labels, args, args.audit_method), args)
@@ -236,14 +256,7 @@ def _run_evaluate(args: argparse.Namespace) -> int:
             "n_labels_dropped": sum(report.n_labels for report in flagged),
             "rows": score(labels.drop_annotators(names)) if names else rows,
         }
-    options = {"baseline": args.baseline, "n_boot": args.bootstrap, "seed": args.seed}
-    return _emit(
-        args,
-        evaluation_markdown(
-            labels, rows, reliability=args.reliability, without_flagged=without, **options
-        ),
-        evaluation_document(labels, rows, without_flagged=without, **options),
-    )
+    return without
 
 
 def _run_annotators(args: argparse.Namespace) -> int:

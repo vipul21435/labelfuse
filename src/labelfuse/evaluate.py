@@ -11,6 +11,7 @@ the Brier score.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -18,6 +19,17 @@ import numpy as np
 
 from labelfuse.data import LabelSet
 from labelfuse.result import TIE_TOLERANCE, AggregationResult, resolve_labels
+
+
+class GoldOutsideClassesWarning(UserWarning):
+    """Some gold labels are not among the classes that the annotators used."""
+
+
+def gold_outside_classes(labels: LabelSet) -> tuple[int, tuple[str, ...]]:
+    """Number of items whose gold label is not a class, and the distinct such labels."""
+    known = set(labels.classes)
+    strays = [value for value in labels.gold or () if value is not None and value not in known]
+    return len(strays), tuple(sorted(set(strays)))
 
 
 def gold_indices(labels: LabelSet) -> np.ndarray:
@@ -167,7 +179,11 @@ def evaluate(
     seed: int = 0,
     n_bins: int = 10,
 ) -> list[MethodEvaluation]:
-    """Score every result on the items that have a gold label."""
+    """Score every result on the items that have a gold label.
+
+    A gold label that is not among the classes can never be predicted and is scored as wrong; a
+    :class:`GoldOutsideClassesWarning` says how many items that concerns.
+    """
     if baseline not in results:
         raise ValueError(f"the baseline {baseline!r} is not among the results")
     gold = gold_indices(labels)
@@ -175,6 +191,17 @@ def evaluate(
     if not known.any():
         raise ValueError("no item has a gold label")
     gold = gold[known]
+    n_outside, strays = gold_outside_classes(labels)
+    if n_outside:
+        shown = ", ".join(repr(value) for value in strays[:5]) + (
+            ", ..." if len(strays) > 5 else ""
+        )
+        warnings.warn(
+            f"gold labels that are not among the classes {labels.classes}: {shown} on "
+            f"{n_outside} of {int(known.sum())} items with gold; those items are scored as wrong",
+            GoldOutsideClassesWarning,
+            stacklevel=2,
+        )
     truth = np.array([value for value in labels.gold or () if value is not None], dtype=object)
 
     credits, hard = {}, {}

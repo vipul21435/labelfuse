@@ -1,15 +1,17 @@
 """Label sets: annotations in long format, indexed for the aggregators.
 
 A label set is a list of (item, annotator, label) triples. Ids and labels are compared as
-strings. Items, annotators and classes are put in a canonical order (numeric when every value is
-an integer, lexicographic otherwise) and the triples are sorted, so the row order of the input
-never changes a result.
+strings; a number is written the way an integer is when it is whole, so 1 and 1.0 are the same
+label, and NaN and infinities count as missing. Items, annotators and classes are put in a
+canonical order (numeric when every value is an integer, lexicographic otherwise) and the triples
+are sorted, so the row order of the input never changes a result.
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import math
 import re
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -41,11 +43,20 @@ def _ordered(values: Iterable[str]) -> list[str]:
 
 
 def _text(value: Any) -> str | None:
-    """Normalise a raw cell to text; ``None`` means the value is missing."""
+    """Normalise a raw cell to text; ``None`` means the value is missing.
+
+    A whole float is written like the integer (1.0 gives "1"), so that the JSON numbers 1 and 1.0
+    are one label. NaN and infinities are missing values, not labels.
+    """
     if value is None:
         return None
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+        if value.is_integer():
+            return str(int(value))
     if isinstance(value, (list, dict)):
         raise ValueError(f"expected a scalar, got {type(value).__name__}")
     text = str(value).strip()

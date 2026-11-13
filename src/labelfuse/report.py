@@ -10,7 +10,7 @@ import numpy as np
 from labelfuse.audit import AnnotatorReport, ItemReport, PlanRow
 from labelfuse.data import LabelSet
 from labelfuse.dawid_skene import DawidSkeneResult
-from labelfuse.evaluate import MethodEvaluation
+from labelfuse.evaluate import MethodEvaluation, gold_outside_classes
 from labelfuse.glad import GladResult
 from labelfuse.result import AggregationResult
 from labelfuse.weighted import WeightedVoteResult
@@ -228,6 +228,7 @@ def evaluation_document(
     document: dict[str, Any] = {
         "n_items": labels.n_items,
         "n_gold": labels.n_gold,
+        "n_gold_outside_classes": gold_outside_classes(labels)[0],
         "n_annotators": labels.n_annotators,
         "n_labels": labels.n_labels,
         "baseline": baseline,
@@ -262,9 +263,17 @@ def evaluation_markdown(
         f"- intervals: 95 % percentile bootstrap over items, {n_boot} resamples, seed {seed}",
         "- accuracy gives 1/t credit when the gold class is one of t tied top classes; the "
         f"McNemar counts break ties at random with seed {seed}",
-        "",
-        *_evaluation_table(rows, baseline),
     ]
+    n_outside, strays = gold_outside_classes(labels)
+    if n_outside:
+        shown = ", ".join(_cell(value) for value in strays[:5]) + (
+            ", ..." if len(strays) > 5 else ""
+        )
+        lines.append(
+            f"- gold labels that no annotator used: {shown} on {n_outside} of {rows[0].n_items} "
+            "items with gold, scored as wrong"
+        )
+    lines += ["", *_evaluation_table(rows, baseline)]
     if without_flagged is not None:
         flagged = without_flagged["flagged"]
         dropped = without_flagged["n_labels_dropped"]

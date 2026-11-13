@@ -286,3 +286,40 @@ def test_write_without_gold_has_three_columns(tmp_path):
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert rows[0] == {"item": "q1", "annotator": "amber", "label": "yes"}
     assert len(rows) == 5
+
+
+def test_whole_floats_are_written_like_integers():
+    labels = LabelSet.from_records([(1, "a", 1), (1.0, "b", 1.0), (2, "a", 2.5), (2.0, "b", -0.0)])
+    assert labels.items == ("1", "2")
+    assert labels.classes == ("0", "1", "2.5")
+    assert list(labels.records()) == [
+        ("1", "a", "1"),
+        ("1", "b", "1"),
+        ("2", "a", "2.5"),
+        ("2", "b", "0"),
+    ]
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf"), np.float64("nan")])
+def test_nan_and_infinity_are_missing_values(value):
+    with pytest.raises(ValueError, match=r"record 1: .* must not be empty"):
+        LabelSet.from_records([("i", "a", value)])
+    labels = LabelSet.from_records([("i", "a", "x")], gold={"i": value})
+    assert labels.gold == (None,)
+
+
+def test_json_numbers_and_nan_in_a_file(tmp_path):
+    path = write(
+        tmp_path / "numbers.jsonl",
+        '{"item": 1, "annotator": "a", "label": 1, "gold": 1.0}\n'
+        '{"item": 1.0, "annotator": "b", "label": 1.0, "gold": NaN}\n'
+        '{"item": 2, "annotator": "a", "label": 0, "gold": NaN}\n',
+    )
+    labels = read_labels(path, gold_col="gold")
+    assert labels.items == ("1", "2")
+    assert labels.classes == ("0", "1")
+    assert list(labels.records()) == [("1", "a", "1"), ("1", "b", "1"), ("2", "a", "0")]
+    assert labels.gold == ("1", None)
+    bad = write(tmp_path / "nan.jsonl", '{"item": 1, "annotator": "a", "label": NaN}\n')
+    with pytest.raises(ValueError, match=r"nan\.jsonl:1: missing value for 'label'"):
+        read_labels(bad)

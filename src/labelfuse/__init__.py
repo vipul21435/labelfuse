@@ -17,12 +17,14 @@ from labelfuse.audit import (
 from labelfuse.data import LabelSet, dump_labels, read_labels, write_labels
 from labelfuse.dawid_skene import DawidSkeneResult, dawid_skene, dawid_skene_posterior
 from labelfuse.evaluate import (
+    GoldOutsideClassesWarning,
     MethodEvaluation,
     ReliabilityBin,
     bootstrap_mean_interval,
     brier_score,
     evaluate,
     expected_calibration_error,
+    gold_outside_classes,
     mcnemar_exact,
     reliability_table,
     tie_credit,
@@ -42,6 +44,7 @@ __all__ = [
     "AnnotatorReport",
     "DawidSkeneResult",
     "GladResult",
+    "GoldOutsideClassesWarning",
     "ItemReport",
     "LabelSet",
     "MethodEvaluation",
@@ -64,6 +67,7 @@ __all__ = [
     "expected_calibration_error",
     "expected_entropy_reduction",
     "glad",
+    "gold_outside_classes",
     "leave_one_out_agreement",
     "majority_vote",
     "mcnemar_exact",
