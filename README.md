@@ -250,7 +250,7 @@ reordering annotators and classes must not change a result. McNemar and the Wils
 compared with scipy, the bootstrap with the binomial distribution, the planner with the mutual
 information of a binary symmetric channel. With crowd-kit 1.4.2 installed
 (`pip install -e ".[dev,compare]"`), Dawid-Skene with `smoothing=0` matches crowd-kit's posterior,
-prior and confusion matrices to 1e-7 on a simulated set, and the vote shares match exactly;
+prior and confusion matrices to 1e-6 on a simulated set, and the vote shares match exactly;
 without crowd-kit those two tests are skipped, as they are in CI.
 
 ## Results on public data
