@@ -14,11 +14,16 @@ alpha, beta and class prior. The M-step has no closed form: it maximises
         - sum_j (alpha[j] - 1)^2 / 2  -  sum_i b[i]^2 / 2
 
 where x = alpha[j] * exp(b[i]) and c is the posterior probability that the label is correct, with
-L-BFGS-B from scipy. The two quadratic terms are Gaussian priors, alpha ~ N(1, 1) and
-b ~ N(0, 1); they are choices of this implementation that keep the scale identified (alpha * beta
-is unchanged by multiplying one and dividing the other) and favour annotators who are better than
-chance. The class prior is uniform by default; ``estimate_prior=True`` re-estimates it in each
-M-step with one pseudo-count per class, which can drift to "nearly every item is of one class".
+L-BFGS-B from scipy. The two quadratic terms are Gaussian priors. alpha ~ N(1, 1) is the prior
+used in the paper (its section 3.1) and favours annotators who are better than chance. For
+b = log beta the paper uses N(1, 1) as well; this implementation centres it at 0, b ~ N(0, 1),
+so that the typical item has beta = 1. A prior on both keeps the scale identified, since
+alpha * beta is unchanged by multiplying one and dividing the other. The optimiser also keeps
+alpha within [-8, 8] and b within [-4, 4] (``ALPHA_BOUND`` and ``LOG_BETA_BOUND``), limits that
+are choices of this implementation.
+
+The class prior is uniform by default; ``estimate_prior=True`` re-estimates it in each M-step
+with one pseudo-count per class, which can drift to "nearly every item is of one class".
 """
 
 from __future__ import annotations
@@ -32,7 +37,8 @@ from labelfuse.data import LabelSet
 from labelfuse.majority import vote_shares
 from labelfuse.result import AggregationResult, TiePolicy, resolve_labels
 
-_BOUND = 8.0
+ALPHA_BOUND = 8.0
+LOG_BETA_BOUND = 4.0
 
 
 @dataclass(frozen=True, eq=False)
@@ -118,7 +124,8 @@ def glad(
     n_annotators, n_items = labels.n_annotators, labels.n_items
     posterior = vote_shares(labels.vote_counts())
     theta = np.concatenate([np.ones(n_annotators), np.zeros(n_items)])
-    bounds = [(-_BOUND, _BOUND)] * n_annotators + [(-_BOUND / 2, _BOUND / 2)] * n_items
+    bounds = [(-ALPHA_BOUND, ALPHA_BOUND)] * n_annotators
+    bounds += [(-LOG_BETA_BOUND, LOG_BETA_BOUND)] * n_items
     objectives: list[float] = []
     converged = False
     for _ in range(max_iter):

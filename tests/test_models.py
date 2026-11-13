@@ -17,7 +17,7 @@ from labelfuse import (
     symmetric_confusion,
     weighted_vote,
 )
-from labelfuse.glad import _negative_q
+from labelfuse.glad import ALPHA_BOUND, LOG_BETA_BOUND, _negative_q
 
 VOTES = [
     ("i1", "a", "x"),
@@ -145,6 +145,16 @@ def test_glad_recovers_ability_order_and_beats_majority():
     votes = np.mean(np.array(majority_vote(labels, tie="first").labels) == gold)
     assert model > votes + 0.02
     assert (np.diff(result.objective_trace) >= -1e-5).all()
+
+
+def test_glad_parameters_stay_within_the_documented_bounds():
+    assert (ALPHA_BOUND, LOG_BETA_BOUND) == (8.0, 4.0)
+    # two annotators who always agree on 400 items pull each other's ability upward
+    records = [(i, a, i % 2) for i in range(400) for a in "ab"]
+    result = glad(LabelSet.from_records(records), max_iter=20)
+    assert (result.ability > 2).all()
+    assert np.abs(result.ability).max() <= ALPHA_BOUND
+    assert np.abs(np.log(result.difficulty)).max() <= LOG_BETA_BOUND
 
 
 def test_glad_gradient_matches_finite_differences():

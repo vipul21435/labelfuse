@@ -195,10 +195,12 @@ prior is fixed to uniform (see [Limitations](#limitations)).
 **GLAD** (`glad`, two classes only). Annotator `j` labels item `i` correctly with probability
 `sigmoid(alpha[j] * beta[i])`: `alpha` is the ability of the annotator (0 is random, negative
 tends to give the opposite label) and `beta > 0` the easiness of the item. EM again; the M-step
-has no closed form and is done with L-BFGS-B from scipy, with Gaussian priors `alpha ~ N(1, 1)`
-and `log beta ~ N(0, 1)` that are choices of this implementation, and a uniform class prior. The
-model is from J. Whitehill, T. Wu, J. Bergsma, J. R. Movellan and P. L. Ruvolo, "Whose Vote Should
-Count More: Optimal Integration of Labels from Labelers of Unknown Expertise", NIPS 2009
+has no closed form and is done with L-BFGS-B from scipy. The Gaussian prior `alpha ~ N(1, 1)` is
+the one used in the paper (its section 3.1). For `log beta` the paper uses `N(1, 1)` too, while
+this implementation centres it at 0, `log beta ~ N(0, 1)`. The optimiser keeps `alpha` within
+[-8, 8] and `log beta` within [-4, 4], and the class prior is uniform. The model is from
+J. Whitehill, T. Wu, J. Bergsma, J. R. Movellan and P. L. Ruvolo, "Whose Vote Should Count More:
+Optimal Integration of Labels from Labelers of Unknown Expertise", NIPS 2009
 ([paper page](https://papers.nips.cc/paper_files/paper/2009/hash/f899139df5e1059396431415e770c6dd-Abstract.html)).
 
 **Annotator audit** (`labelfuse annotators`). Computed from the labels and the posterior of any
